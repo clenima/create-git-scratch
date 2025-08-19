@@ -1,10 +1,10 @@
-name: Package
+name: Pre-Release
 
 on:
   workflow_dispatch:
   push:
     paths:
-      - '.github/workflows/package.yml'
+      - '.github/workflows/pre-release.yml'
       - 'package.json'
       - 'src/**/*.ts'
       - 'data/**/*.txt'
@@ -14,9 +14,12 @@ on:
     branches:
       - main
 
+
 jobs:
-  package:
+  pre-release:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
 
@@ -38,29 +41,29 @@ jobs:
         run: |
           # Get current version
           CURRENT_VERSION=$(bun pm pkg get version)
+          TIMESTAMP_META=$(date +%Y.%j).$(( $(date +%s) % 86400 ))
 
           # Check for breaking changes in commit messages
           if git log --oneline -1 | grep -i -E '\[(breaking|major)\]|BREAKING CHANGE'; then
-            NEW_VERSION=$(bun pm version major --json | jq -r '.version')
+            NEW_VERSION=$(bun pm version major --preid=$TIMESTAMP_META --no-git-tag-version)
           # Check for new features
           elif git log --oneline -1 | grep -i -E '\[(feat|feature|minor)\]|feat:'; then
-            NEW_VERSION=$(bun pm version minor --json | jq -r '.version')
+            NEW_VERSION=$(bun pm version minor --preid=$TIMESTAMP_META --no-git-tag-version)
           # Default to patch for fixes and other changes
           else
-            NEW_VERSION=$(bun pm version patch --json | jq -r '.version')
+            NEW_VERSION=$(bun pm version prerelease --preid=$TIMESTAMP_META --no-git-tag-version)
           fi
 
-          # Add timestamp metadata for uniqueness
-          TIMESTAMP_META="+$(date +%Y.%j).$(( $(date +%s) % 86400 ))"
-          bun pm pkg set version="${NEW_VERSION}${TIMESTAMP_META}"
+      - name: Test
+        run: bun run test
 
-      - name: Run package workflow
-        run: bun run package
+      - name: Build
+        run: bun run build
 
       - name: Publish to npm
         run: bun publish --access public
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_CONFIG_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Push version update
         run: |
