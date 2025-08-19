@@ -4,13 +4,8 @@ on:
   workflow_dispatch:
   push:
     tags:
-      - 'v*.*.*'
+      - 'v[0-9]+.[0-9]+.[0-9]+'
       - '[0-9]+.[0-9]+.[0-9]+'
-    branches:
-      - main
-  pull_request:
-    branches:
-      - main
 
 jobs:
   release:
@@ -30,7 +25,25 @@ jobs:
         with:
           bun-version: latest
 
-      - run: bun install
+      - name: Validate semver tag and set version
+        run: |
+          # Extract version from git tag (remove 'v' prefix if present)
+          TAG_VERSION=${GITHUB_REF#refs/tags/}
+          TAG_VERSION=${TAG_VERSION#v}
+
+          # Strict semver validation
+          if [[ ! $TAG_VERSION =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "❌ Error: Tag '$TAG_VERSION' is not a valid semver format (X.Y.Z where X, Y, Z are numbers)"
+            echo "Valid examples: v1.2.3, 1.2.3"
+            echo "Invalid examples: v1.2, 1.2.3-alpha, 1.2.3.4"
+            exit 1
+          fi
+
+          # Set version in package.json to match tag
+          echo "✅ Valid semver tag: $TAG_VERSION"
+
+      - name: Install
+        run: bun install
 
       - name: Test
         run: bun run test

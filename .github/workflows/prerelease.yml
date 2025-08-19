@@ -35,7 +35,10 @@ jobs:
         with:
           bun-version: latest
 
-      - run: bun install
+      - name: Git configurations
+        run: |
+          git config --local user.name ${{ github.actor }}
+          git config --local user.email $(git --no-pager show --format="<%ae>" -s HEAD)
 
       - name: Auto-bump version with semver
         run: |
@@ -43,7 +46,11 @@ jobs:
           CURRENT_VERSION=$(bun pm pkg get version)
           TIMESTAMP_META=$(date +%Y.%j).$(( $(date +%s) % 86400 ))
 
-          NEW_VERSION=$(bun pm version prerelease --preid=$TIMESTAMP_META --message="%s [prerelease.yml] [ci skip]")
+          NEW_VERSION=$(bun pm version prerelease --preid=$TIMESTAMP_META --message="%s [ci skip]")
+          echo "Bumped version to: $NEW_VERSION"
+
+      - name: Install
+        run: bun install
 
       - name: Test
         run: bun run test
@@ -58,9 +65,6 @@ jobs:
 
       - name: Push version update
         run: |
-          git pull origin main
-          git config --local user.name ${{ github.actor }}
-          git config --local user.email $(git --no-pager show --format="<%ae>" -s HEAD)
           if ! git status | grep -q "working tree clean"; then
             git push
           fi
