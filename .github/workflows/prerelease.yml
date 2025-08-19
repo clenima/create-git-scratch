@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   push:
     paths:
-      - '.github/workflows/pre-release.yml'
+      - '.github/workflows/prerelease.yml'
       - 'package.json'
       - 'src/**/*.ts'
       - 'data/**/*.txt'
@@ -16,7 +16,7 @@ on:
 
 
 jobs:
-  pre-release:
+  prerelease:
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -43,16 +43,7 @@ jobs:
           CURRENT_VERSION=$(bun pm pkg get version)
           TIMESTAMP_META=$(date +%Y.%j).$(( $(date +%s) % 86400 ))
 
-          # Check for breaking changes in commit messages
-          if git log --oneline -1 | grep -i -E '\[(breaking|major)\]|BREAKING CHANGE'; then
-            NEW_VERSION=$(bun pm version major --preid=$TIMESTAMP_META --no-git-tag-version)
-          # Check for new features
-          elif git log --oneline -1 | grep -i -E '\[(feat|feature|minor)\]|feat:'; then
-            NEW_VERSION=$(bun pm version minor --preid=$TIMESTAMP_META --no-git-tag-version)
-          # Default to patch for fixes and other changes
-          else
-            NEW_VERSION=$(bun pm version prerelease --preid=$TIMESTAMP_META --no-git-tag-version)
-          fi
+          NEW_VERSION=$(bun pm version prerelease --preid=$TIMESTAMP_META --message="%s [prerelease.yml] [ci skip]")
 
       - name: Test
         run: bun run test
@@ -71,8 +62,6 @@ jobs:
           git config --local user.name ${{ github.actor }}
           git config --local user.email $(git --no-pager show --format="<%ae>" -s HEAD)
           if ! git status | grep -q "working tree clean"; then
-            git add package.json
-            git commit -m "$(bun pm pkg get version) [package.yml] [ci skip]"
             git push
           fi
 
