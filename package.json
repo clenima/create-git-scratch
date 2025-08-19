@@ -1,6 +1,6 @@
 {
   "name": "@clenima/create-git-scratch",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "description": "Creates a temporary git repository with random name for quick prototyping",
   "main": "dist/index.js",
   "module": "dist/index.js",
@@ -11,10 +11,13 @@
   "scripts": {
     "build": "bun build ./src/index.ts --outdir ./dist --target node",
     "dev": "bun run ./src/index.ts",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "test": "bun run type-check",
+    "package": "bun run test && bun run build && bun publish --dry-run"
   },
   "files": [
-    "dist"
+    "dist",
+    "data"
   ],
   "keywords": [
     "git",

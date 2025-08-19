@@ -1,0 +1,80 @@
+name: Package
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/package.yml'
+      - 'package.json'
+      - 'src/**/*.ts'
+      - 'data/**/*.txt'
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache Bun dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lockb') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - run: bun install
+
+      - name: Auto-bump version with semver
+        run: |
+          # Get current version
+          CURRENT_VERSION=$(bun pm pkg get version)
+
+          # Check for breaking changes in commit messages
+          if git log --oneline -1 | grep -i -E '\[(breaking|major)\]|BREAKING CHANGE'; then
+            NEW_VERSION=$(bun pm version major --json | jq -r '.version')
+          # Check for new features
+          elif git log --oneline -1 | grep -i -E '\[(feat|feature|minor)\]|feat:'; then
+            NEW_VERSION=$(bun pm version minor --json | jq -r '.version')
+          # Default to patch for fixes and other changes
+          else
+            NEW_VERSION=$(bun pm version patch --json | jq -r '.version')
+          fi
+
+          # Add timestamp metadata for uniqueness
+          TIMESTAMP_META="+$(date +%Y.%j).$(( $(date +%s) % 86400 ))"
+          bun pm pkg set version="${NEW_VERSION}${TIMESTAMP_META}"
+
+      - name: Run package workflow
+        run: bun run package
+
+      - name: Publish to npm
+        run: bun publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Push version update
+        run: |
+          git pull origin main
+          git config --local user.name ${{ github.actor }}
+          git config --local user.email $(git --no-pager show --format="<%ae>" -s HEAD)
+          if ! git status | grep -q "working tree clean"; then
+            git add package.json
+            git commit -m "$(bun pm pkg get version) [package.yml] [ci skip]"
+            git push
+          fi
+
+      - name: Discord notification
+        uses: sarisia/actions-status-discord@v1
+        if: always()
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
