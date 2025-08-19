@@ -1,0 +1,45 @@
+name: Lint
+
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/lint.yml'
+      - 'src/**/*.ts'
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Cache Bun dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lockb') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install
+      - name: Validate package.json
+        run: bun pm pkg fix
+      - name: Run type check
+        run: bun run type-check
+      - name: Run publish dry-run
+        run: bun publish --access public --dry-run
+        env:
+          NPM_CONFIG_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: Discord notification
+        uses: sarisia/actions-status-discord@v1
+        if: always()
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
